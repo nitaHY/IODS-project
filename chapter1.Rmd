@@ -3,11 +3,21 @@
 
 *Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you should use R Markdown syntax.*
 
+# Feelings about the course right now and some expectations
+There was more basic R practises in the beginning of the course than I expected when I signed up for the course. However, it seems that I may learn to use some new tools, such as tibble and tools used in its formatting during the course.
+
 ```{r}
 # This is a so-called "R chunk" where you can write R code.
 
 date()
 
 ```
-The text continues here.
 
+# My learning experiences with the R for Health Data Science book and the Exercise Set 1
+I have been processing data mostly using data frames, but I found it quite refreshing to explore new tools to handle data with the tibble and useful functions introduced. I am quite familiar with R, so I was able compare the new tools to those I have already used and get to know or even some way learn that way the usage of the more modern tools. My favorite topic was ggplot because I have not thoroughly learned the basics of ggplot visualization tools before, although I consider it a very important tool for creating advanced data visualization. At the same time, I thought that the ggplot was the most difficult topic. 
+
+
+
+
+# Link to my github repo
+https://github.com/nitaHY/IODS-project
