@@ -1,13 +1,165 @@
-# Insert chapter 2 title here
-
-*Describe the work you have done this week and summarize your learning.*
-
-- Describe your work and results clearly. 
-- Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods.
-- Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
+# 2: Regression and model validation
 
 ```{r}
 date()
 ```
 
-Here we go again...
+## 1. Reading the data in
+```{r message =FALSE, warning=FALSE}
+#libraries needed:
+library(dplyr)
+
+#reading in a subsample of the learning2014 data created earlier in the data wrangling part
+students2014 = read.csv("data/learning2014.csv", header = TRUE)
+
+#structure of the data:
+str(students2014)
+#mostly numeric data included in the variables, but gender-column includes character vector variable that gets values F and M
+
+#dimensions of the data
+dim(students2014)
+#there are 166 rows = data from 166 students and 7 columns = variables included in the data
+
+```
+### Description of the students2014-dataset
+This students2014-data is an earlier created subset of a learning questionnaire data from [here](http://www.helsinki.fi/~kvehkala/JYTmooc/JYTOPKYS3-data.txt). 
+More information about the contents can be found from [here](http://www.helsinki.fi/~kvehkala/JYTmooc/JYTOPKYS3-meta.txt).
+In short, in the original data, there are individual students' answers to the questionnaire including questions about learning and attitudes towards learning statistics. In addition, there are basic information about the students, such as gender, age and degree, time used for studying, number of courses studied at the moment of answering and the year of studies. From this data I extracted a part that includes only age, gender, attitude and points from the original data and also three summary variables, deep, stra and surf, which refer to deep, strategic or surface learning approaches and are mean values of certain original variables defined [here](http://www.helsinki.fi/~kvehkala/JYTmooc/JYTOPKYS3-meta.txt) in more detail. 
+
+## 2. Summary of the variables and their relationships
+By plotting histograms and qq-plots I can deduce if the distributions of the variables are normal or not and use this information for example when choosing the statistical tests. Boxplots and numerical summaries also show the range of values around the mean but also show potential outliers to be excluded from the analyses. Normally distributed variables (or if they can be at least transformed to normally distributed) can be quite safely used as dependent variables in the linear regression models. Outliers may distort results so they should be noticed and possibly removed from the data before analysis. 
+### Summaries of the variables
+```{r message =FALSE, warning=FALSE}
+summary(students2014)
+# as the gender is a categorical variable, not continuous as the others, this basic summary command does not offer much information about it, so I show here how many observations there are per category (M=men, )
+table(students2014$gender)
+#there seems to be answers from 110 women and 56 men in the data
+
+```
+
+
+### Histograms
+
+```{r message =FALSE, warning=FALSE}
+library(GGally)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+#histograms for all numerical variables (so gender is not included):
+students2014[,c(2:7)] %>% 
+  gather() %>% 
+  ggplot(aes(x=value)) + geom_histogram(bins = 20) + facet_wrap('key', scales='free')
+
+ 
+```
+
+Interpretation of information in the plotted histograms: except for the right skewed distribution of age, all the variables seem to be quite normally distributed, although the distributions are not quite even, but have some gaps and peaks in the middle. However, some of those gaps and peaks may look too wide due to settings in the plotting function. Maybe the QQ-plots give some additional accuracy to this.
+
+### QQ-plots
+```{r message =FALSE, warning=FALSE}
+library(GGally)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+
+#qq-plots:
+students2014[,c(2:7)] %>% 
+  gather() %>% 
+  ggplot(aes(sample=value)) + 
+  geom_qq() + 
+  geom_qq_line(colour = "blue") +
+  facet_wrap('key', scales='free')
+```
+
+Interpretation of the QQ-plots: according to the QQ-plots, age-variable does not seem to be normally distributed, and the points-variable is also at the limit of whether it is normally distributed, since the higher end diverges from the line. Other QQ-plots, instead, support the evidence of normal distribution observed in histograms earlier.
+
+### Box plots 
+```{r message =FALSE, warning=FALSE}
+library(GGally)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+students2014[,c(2:7)] %>% 
+  gather() %>% 
+  ggplot(aes(y=value, x='')) + 
+  geom_boxplot() + 
+  facet_wrap('key', scales='free')
+
+```
+
+Interpretation of the boxplots: typically, boxplots are used to compare for example median or range of a continuous variable between different categories, but here I used it just to show how are the median value and other values located within the 1.5 times interquartile range area and if there are outliers. Boxplots of age, deep and surf show that there are some potential outliers, the dots outside the the whiskers. Also, uneven lengths of whiskers in age and points boxplots can indicate some deviation or skewness in the (normal) distribution of these variables.
+
+### Correlation of variable pairs + extra plots
+```{r message =FALSE, warning=FALSE}
+library(GGally)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+#ggpairs from ggplot2-package will form all combinations of pairs from the variables in the data and plot their 
+p2 <- ggpairs(students2014, mapping = aes(alpha = 0.3), lower = list(combo = wrap("facethist", bins = 20)))
+p2
+
+```
+
+Interpretation of ggpairs output: here we can see histograms, boxplots and scatter plots drawn for each categorical variable by gender (the only categorical variable) and also density plots. I, however, drew this graph because of paired correlation tests. The more the Corr-titled value of two variables differs from zero, the stronger correlation, or dependence there may be between them. However, the correlation should be interpreted carefully as it may only be apparent rather than a real dependency. The relationship is not necessarily causal either. The strongest correlations seem to be between Attitude and Points pair and between surf and deep pair. Weakest correlations seem be between Attitude and Age pair and deep and Points pair. 
+
+## 3. Linear regression
+### Linear regression model using exam points as dependent variable and attitude, stra(tegic learning) and surf(ace learning) as explanatory variables 
+With this I will study if there are statistically significant linear relationship type association between exam points and attitude or the  chosen learning strategy scores and if some or all of them could be used as estimates exam points value. 
+```{r message =FALSE, warning=FALSE}
+#Linear model fitting with chosen dependent variable: Points, and explanatory variables: Attitude, stra and surf
+exampoints1 = lm(Points ~ Attitude + stra + surf, data = students2014)
+summary(exampoints1)
+
+
+  
+```
+
+#Interpretation of results of exampoints1-model: 
+* Residuals: median of residual is quite nearby zero and 1Q and 3Q quite equally far from the median, but I think that the distribution of the residuals could be good to check, if the normality assumption of their distribution is actually fulfilled and the linear model is valid. 
+* Coefficients and the statistical test: to see if there is a statistically significant association between the dependent and explanatory variable, t-test is used to test if the null hypothesis, slope (or beta1 in the linear regression equation), is zero or not. To calculate this t-value, the coefficient estimate, one for each explanatory variable, seen under the title 'Estimate' in the lm-summary table is divided by its (referring to the coefficient estimate value) standard error ('Std.Error'), like this: 'Estimate'/'Std.Error' = 't value', so, for example to the Attitude-variable, the t-value can be calculated as follows: 0.33952/0.05741 = 5.913952. The p-value, probability of getting at least the t-value (just absolute amount matters) estimated, in turn, can be calculated based on or estimated from the t-distribution. For the p-value estimation, information about degrees of freedom and if the t-test is one or two tailed is needed in addition to the t-value. In our regression analysis, there are 162 degrees of freedom, and according to the sources listed below as well as estimated p-values, we used two-tailed t-test. To summarize the results shown in the 'Coefficient' part of the lm-summary-table, I could say that there is statistically significant association (p-value < 0.05) between the explanatory variable Attitude and the dependent variable Points. Other explanatory variables do not have statistically significant association with the Points. 
+Here are the outside course material sources I used in the t-test interpretation: [t-test_linear_regression](https://www.statology.org/t-test-linear-regression/#:~:text=Linear%20regression%20is%20used%20to%20quantify%20the%20relationship,by%20performing%20a%20t-test%20for%20the%20regression%20slope.)(visited 13.11.2023), [p_value_and_t_value](https://www.statology.org/t-value-vs-p-value/#:~:text=For%20each%20test%2C%20the%20t-value%20is%20a%20way,data%20if%20the%20null%20hypothesis%20is%20actually%20true.)(visited 13.11.2023) and [p_value_from_t_statistic](https://www.statology.org/p-value-from-t-statistic/)(visited 13.11.2023)
+
+
+```{r message =FALSE, warning=FALSE}
+# Since Attitude was the only explanatory variable that was statistically significantly associated with the depended variable, Points, I remove surf and stra from the model and fit here a new model including only the Points and Attitude:
+exampoints2 = lm(Points ~ Attitude, data = students2014)
+summary(exampoints2)
+ 
+```
+
+
+## 4. Explaining the relationship of the dependent variable and the explanatory variables and interpreting the multiple R squared results
+```{r message =FALSE, warning=FALSE}
+#I would interpret here the original linear model (including also non-significant explanatory variables) summary table:
+summary(exampoints1)
+ 
+```
+As already mentioned, the only statistically significantly associated explanatory variable in this model was Attitude. The association seems to be positive, due to positive value of 'Estimate', so when the value of Attitude increases also the value of Points should increase, if this model is valid (linear regression assumptions fulfilled, these are evaluated in later section) and linear relationship actually exists. But according to this model, when Attitude increases, Points increases, and similarly, when the value of Attitude decreases, the Points also decreases. The 'Estimate' describes to slope of the regression line, and in the plot there would be Points on the y-axis and Attitude on the x-axis. In practice, when the value of x, or Attitude, increases one unit, Points (value) increases the amount of 'Estimate', which is 0.33952 per each Attitude unit.  
+
+The other explanatory variables are not statistically significant, and I would say, that they does not matter in the analysis or prediction of the dependent variable and remove them from the final prediction model. However, If the variables had been statistically significantly associated, I would have interpret the result that the relationship between stra and Points would have also been positive, so when one increases or decreases, the other does the same, and the relationship between the surf and Points would have been negative, meaning that when Points increases the surf value decreases and vice versa. 
+
+R squared and the penalized version of it, the adjusted R squared (this may the multiple R squared asked in the task, since each variable with no significant effect to the dependent variable will lower this adjusted R squared values), measures how well the data is fitted by a model. It's also interpreted as how much of the variance of the dependent variable is explained by the explanatory variables. According to these measures, the part of variation of dependent variable explained by the explanatory variables is about 0.2 (from 1.0, which would be all variance of the dependent variable). This does not seem very huge part of variation explained or not very good fit of the data by the model, but the interpretation whether it's clinically significant (or useful result in practice) may depend on many things I'm not able to evaluate here.
+
+## 5. Diagnostic plots and interpretation of model assumptions
+```{r message =FALSE, warning=FALSE}
+library(ggfortify)
+#I will use autoplot from ggfortify to produce the asked plots: Residuals vs Fitted values, Normal QQ-plot and Residuals vs Leverage
+autoplot(exampoints1)
+
+```
+The assumptions of the model are: 
+1. Linear relationship between the dependent and explanatory variables: this would be best observed from a plotting a simple scatter plot of dependent versus explanatory variables with fitted line to see, if the there is a slope and the dots are located nicely around the line, following the trend. 
+2. Independence of residuals, followed from the assumption of independent observations: ideally, the dots in the Residual vs Fitted plot should be randomly spread around the area. In this case, I would say that the dots are quite randomly located in the Residuals vs Fitted plot, so the assumption is fulfilled.
+3. Normal distribution of residuals: from the QQ-plot of residuals ('Normal QQ-titled plot) we can see that the dots mostly settle quite well on the line, but there is some dispersion at both ends of the line. The dispersion may still be within acceptable limits and the distribution would then fulfill the assumption of normality.
+4. Equal variance of residuals, which can also be observed from the Residuals vs Fitted plot: this assumption is fulfilled if the dots seem to be equally far or close the line both on the left side and right side on the figure. I think that's true in the Residuals vs Fitted plot.
+
+The Residuals vs Leverage plot helps to find out if there are some influential observations that, if removed from the data, would affect a lot to the the model fit (as well as affect it if kept in the data, I guess). They can be outliers that should be removed, but at least they should be checked if they are errors, for instance. In the source (second source below) that I studied this plot type, there were some "Cook's distance" limited areas, which showed the very influential observations, but I can't see those dashed lines in the plot I created using autoplot. It seems, however, that high leverage and very low or high standardized residual value (as location) would be a bad thing, meaning that the dot would be located inside the Cook's distance which refers to very influential observation, in the example plots (check the second source below). I interpret that my Residual vs Leverage plot does not include very influential observations. 
+
+More information related to the Residuals vs Fitted plot was found [here]( https://www.statisticshowto.com/residual-plot/#:~:text=A%20residual%20plot%20has%20the%20Residuas%20on%20the,axis%3B%20the%20horizontal%20axis%20displays%20the%20independent%20variable.) (visited 13.11.2023).
+From [here](https://www.statology.org/diagnostic-plots-in-r/) I found more information about the interpretation of Residuals vs Leverage plot (visited 14.11.2023).
+
