@@ -152,6 +152,7 @@ library(ggfortify)
 autoplot(exampoints1)
 
 ```
+
 The assumptions of the model are: 
 1. Linear relationship between the dependent and explanatory variables: this would be best observed from a plotting a simple scatter plot of dependent versus explanatory variables with fitted line to see, if the there is a slope and the dots are located nicely around the line, following the trend. 
 2. Independence of residuals, followed from the assumption of independent observations: ideally, the dots in the Residual vs Fitted plot should be randomly spread around the area. In this case, I would say that the dots are quite randomly located in the Residuals vs Fitted plot, so the assumption is fulfilled.
