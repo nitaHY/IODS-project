@@ -55,20 +55,9 @@ math_por = inner_join(math, por, by = join_cols, suffix = c(".math", ".por"))
 # Then I will add the variable columns in the for loop using the same logic as 
 # in the Exercise3: if the two duplicate columns contain numeric data, I will take
 # mean of them to the alc-data, but if the data is not numeric, I will choose 
-# the answer from the first columns, which comes from por in this case. 
+# the answer from the first columns, which comes from mat in this case. 
 
 alc <- select(math_por, all_of(join_cols))
-
-#for (i in c(1:length(variable_colums))){
-#alc[,paste(variable_colums[i])] = NA
-#alc[,variable_colums[i]]
-#y = ifelse(is.numeric(unlist(math_por[,grep(variable_colums[i], colnames(math_por))][1])),
- #                                 apply(math_por[,grep(variable_colums[i], colnames(math_por))], 1, mean), 
-#                                  unlist(math_por[,grep(variable_colums[i], colnames(math_por))][1]))
-
-#}
-
-
 
 for(col_name in variable_colums) {
   # select two columns from 'math_por' with the same original name
