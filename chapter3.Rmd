@@ -1,0 +1,340 @@
+---
+title: "chapter3"
+author: "Nita Mettinen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# 3: Logistic regression: analysis
+
+```{r message =FALSE, warning=FALSE}
+date()
+library(dplyr)
+library(finalfit)
+library(patchwork)
+library(ggplot2)
+library(GGally)
+library(tidyr)
+library(boot)
+```
+
+## 2. Data, variables and a short description
+I read the data from my local data folder. I'm in the IODS-project folder at the moment of reading the data. 
+```{r message =FALSE, warning=FALSE}
+alc = read.csv("data/alc.csv", sep = ";")
+dim(alc)
+str(alc)
+#printing out the colnames
+colnames(alc)
+```
+The original two data sets include mathematics and Portuguese languge performance information of students in two secondary education level Portuguese schools. The performance value is stored in the grade variables named as G1, G2 and G3, which also tells. G1 grade is from period 1, G2 from period 2 an G3 from period 3 and it is expected to have high correlation with the G1 and G2. In addition of grades, there are a lot of other variables related to the background, environment, behavior and characteristics of the students, such as alcohol consumption, absences, sex, age etc. 
+More information about the data as well as the original data can be found and downloaded [here](http://www.archive.ics.uci.edu/dataset/320/student+performance) (visited 20.11.2023)
+This alc dataset is, however, combination of the two performance data sets. Background information is used to join the information from same students, and only common students included in both original data sets were kept in the 'alc' data. In this 'alc' data the grades are mean values of the two school subjects (mathematics and Portuguese language grades combined). Failures and absences are also mean values from the two data sets, alc_use is mean alcohol use of weekday and weekend use, high_use is a boolean variable depending on the average alcohol consumption (high use = more than two portions per week) and paid variable comes from mathematics data.
+
+## 3. Four interesting variables and my hypotheses
+There are so many interesting explanatory variables, but if I have to choose only four, I will choose: 
+
+1. absences - number of school absences (numeric: from 0 to 93)
+Hypothesis: those who are more absent may use more alcohol.
+
+2. goout - going out with friends (numeric: from 1 - very low to 5 - very high) 
+Hypothesis: those who spend a lot of time out with friends would probably use more alcohol due to social pressure than those who go out less 
+
+3. famrel - quality of family relationships (numeric: from 1 - very bad to 5 - excellent)
+Hypothesis: those who have good relationship with their family would more probably use less alcohol
+
+4. health - current health status (numeric: from 1 - very bad to 5 - very good)
+Hypothesis: If a young adult does not feel healthy, which can be, for example, due to mental illness or chronic pain, the person would more probably use more alcohol. 
+
+I interpret more alcohol consumption, high_use = TRUE, as bad or worse outcome compared to the less alcohol consumption, in which high_use = FALSE.
+
+## 4. Numerical and graphical exploration of the chosen variables's distributions and relationship with alcohol consumption
+```{r message =FALSE, warning=FALSE}
+
+chosen_var = c("absences", "goout", "health", "famrel")
+
+#Barplots to see overall distribution of variables (not against any other variable at this point)
+gather(alc[,chosen_var]) %>% ggplot(aes(value)) + geom_bar() + ggtitle("Barplots of selected variables") + facet_wrap("key", scales = "free")
+
+
+```
+
+#### Barplots of selected variables: 
+Here we can see distributions of the selected variables in the whole data.Students are not evenly distributed over any of the variables. According to these, "worse" values, which I hypothesized to be related to more alcohol consumption (smaller value in health or famrel, higher value in absences and goout) seem to be generally less frequent. Hypothesized "good" or "better" values, in turn, seem to be more frequent among these young adults. In the goout variable, there are more average answers (option 3) than in other variables, where the answers are focused on the "good" end (from my hypothesis point of view) of the distributions. 
+
+```{r message =FALSE}
+
+#Tabulation of variables: 
+#- mean values of variables in the groups defined by dependent variable (high_use of alcohol)
+#- relationship of each variable (in the tab1) and each category of each variable (tab2) with the dependent variable (high_use)
+
+#tab1
+dependent <- "high_use"
+explanatory <- chosen_var
+alc %>% 
+  summary_factorlist(dependent, explanatory, p = TRUE,
+                     add_dependent_label = TRUE)
+
+#tab2: to this table I create another data frame that includes the categorical variables of interest as factors that I can see the relationship of each group. This enables more detailed evaluation of relationships of those explanatory and dependent variables.
+alc_f = alc
+alc_f$goout = as.factor(alc$goout)
+alc_f$health = as.factor(alc$health)
+alc_f$famrel = as.factor(alc$famrel)
+
+explanatory_f <- c("absences" ,"goout",    "health" ,  "famrel")
+alc_f %>% 
+  summary_factorlist(dependent, explanatory_f, p = TRUE,
+                     add_dependent_label = TRUE)
+
+
+
+```
+
+
+#### Tab1:
+Tab1 shows the relationship between dependent variable (high_use) and explanatory variables (the selected four variables), and also mean value and standard deviations of the explanatory variables in the groups of dependent variable. P-value is a result from one or another statistical test (which can be read more from [here](https://finalfit.org/reference/summary_factorlist.html), visited 20.11.2023) and shows if there is statistically significant relationship between the dependent and expalantory variables. It can be utilized when evaluating which explanatory variables should be included in the model. 
+In this tab1, we can see that there are statistically significant relationships between the dependent variable and abscences, goout and famrel, but not with health. The overal group specific mean values of the explanatory variables also indicate that on average, those who belong to group high_use = FALSE, act and feel differently about these factors than those who belong to the high_use = TRUE group. 
+
+#### Tab2: 
+In tab2 we can see also the mean values of each group of explanatory variables.Statistical test results remain the same for the absences and goout, and substantially identical to the health variable, but famrel result has change from statistically significant to non-significant and also caused warning, that the chi-squared test approximation may not be correct. I think this may be due to too few observations in the high_use = TRUE and famrel = 1 group, since there were only 2 observations included. I guess that approximation based on too few observations may be unreliable and unstable. 
+
+According to tab1 and tab2 results, I would say that my hypothesis about the relationship between the higher alcohol consumption and more absences as well as the relationship between more alcohol and more going out with friends hold, but hypotheses about the good relationship with family and less alcohol or good health and less alcohol may not hold according to the tab1 and tab2 results.
+
+```{r message =FALSE, warning=FALSE}
+#Graphical exploration of each variable
+#for the continuous absence variable against categorical high_use dependent variable I will visualize the relationship using boxplot
+g2 <- ggplot(alc, aes(x = high_use, y = absences))
+
+# define the plot as a box plot and draw it
+g2 = g2 + geom_boxplot() + xlab("High use (> 2 portions/week on average) alcohol consumption") + ylab("Absences") + ggtitle("Student absences by alcohol consumption")
+g2
+
+
+```
+
+
+#### Student absences by alcohol consumption -boxplot for continuous absences variable against categorical high_use variable
+The boxplot shows that also medians (means were seen to differ in the tab1 and tab2) differ between high_use categorized absences. From the difference in the size of the boxes and the length of the whiskers, as well as the placement on the y-axis, we can also conclude that the distributions of the absences differ between the groups. This may cause some unstability to the resuls, or may not. There also seem to be some outliers in high end of the absences variable in both high_use categories. I can consider removal of them before the regression analysis. 
+
+```{r message =FALSE, warning=FALSE}
+#group specific barplots for categorical health, goout and famrel variables groupped by the categorical high_use (dependent) variable
+
+#high users in health different groups of health anwerers
+
+p1 <- alc %>% 
+  ggplot(aes(x = health, fill = high_use)) + 
+  geom_bar() + 
+  theme(legend.position = "none") + xlab("High use count in health groups")
+
+p2 <- alc %>% 
+  ggplot(aes(x = health, fill = high_use)) + 
+  geom_bar(position = "fill") + 
+  ylab("proportion") +
+  xlab("High use proportions in health groups")
+
+p1 + p2
+
+#famrel and high_use
+p3 <- alc %>% 
+  ggplot(aes(x = famrel, fill = high_use)) + 
+  geom_bar() + 
+  theme(legend.position = "none") + xlab("High use count in famrel groups")
+
+p4 <- alc %>% 
+  ggplot(aes(x = famrel, fill = high_use)) + 
+  geom_bar(position = "fill") + 
+  ylab("proportion") +
+  xlab("High use proportions in famrel groups")
+
+p3 + p4
+
+#goout and high_use
+p5 <- alc %>% 
+  ggplot(aes(x = goout, fill = high_use)) + 
+  geom_bar() + 
+  theme(legend.position = "none") + xlab("High use count in goout groups")
+
+p6 <- alc %>% 
+  ggplot(aes(x = goout, fill = high_use)) + 
+  geom_bar(position = "fill") + 
+  ylab("proportion") +
+  xlab("High use proportions in goout groups")
+
+p5 + p6
+
+```
+
+
+
+#### Barplots of categorical explanatory and dependent varibles: high_use categorization of categorical explanatory variables (health, goout and famrel) categories
+From the first barplots containing high_use counts (on the left) and proportions (on the right) in different health answer categories (1=worse health, 5=better health) we can see that the proportion of students classified as 'high users' of alcohol is quite equal in each health group. I would deduce that the health status does not affect much to the student's alcohol usage. 
+In the second barpolot describing family relationship (1=worse, 5=better) and alcohol consumptin in these answer groups, we can see a slight shift to the right in the proportion distribution of high_use = TRUE. I would interpret that a little bit higher proportion of those with worse family relationship are classified as 'high users' of alcohol compared to those with better family relationships. However, this assumption may be unstable as we see in the count-figure (left side plot) and in the tab2 earlier, that there is very low amount of high-use observations in the famrel-group 1. We may thus have too little example of group 1 to make accurate enough approximations about the relationship of variables in this group. 
+
+In the third pair of barplots we see counts and proportions of high_use groups in goout groups (going out with friends is from 1=low to 5=high). In the proportion of usage graph on the right we can see a clear shift on the left in the proportion of 'high users' in the goout group. I would say that higher percentage of those who go out more with their friends will use more alcohol than those who go less out with their friends.  
+
+## 5. Fitting logistic regression model and interpreting the results
+```{r message =FALSE, warning=FALSE}
+
+#fit the logistic regression model (m) using high_use as dependent variable and the selected four variables as explanatory variables
+# I will use the data where I have the factor variables in the actual factor form (they include levels 1-5)
+m <- glm(high_use ~ absences + health + famrel + goout, data = alc_f, family = "binomial")
+
+#summary of the model:
+summary(m)
+
+#Estimates (coefficients) seen in the summary table are in log-odds scale and can be changed to odds-ratios by exponentiation. 
+# compute odds ratios (OR) to the explanatory variables in the fitted model m: 
+OR <- coef(m) %>% exp
+#OR
+# The confidence intervals for the ORs should also be calculated in the exponentiated scale.
+#compute confidence intervals (CI)
+CI = confint(m) %>% exp
+#CI
+# print out the odds ratios with their confidence intervals
+cbind(OR, CI)
+```
+
+### Interpretation of logistic regression model, OR and CI results
+#### Results presented variable by variable
+Absences
+Absences was the only continuous variable in my model and it seem to be statistically significantly (p-value < 0.05) associated with the dependent variable (high_use). Odds-ratio for absences is ~1.07. The Health Data Science book (Ewen Harrison and Riinu Pius, 2021, chapter: 9.2 Binary logistic regression) has the following interpretation for the relationship of the OR of continuous variable and binary dependent variable: "the odds ratio is the change in odds of a CV event associated with a 1 cup increase in coffee consumption". Based on this, I would interpret the relationship between absence and high_use as follows: per each time of absence, the odds of high use event occurrence increases by ~1.07. I would say that it becomes more probable to become as a 'high user' of alcohol per each absence. However, this does not yet mean causality. High use event here means the situation where the average weekly consumption of alcohol is more than two portions. Confidence intervals (CI) for the absences seem to be quite narrow, referring to accurate estimate.Value 1 is not included in the CI, meaning that the values of log-odds do not vary from below the zero to more than zero, from which it follows that OR values do not vary from less than 1 to more than one. This means that the direction of the effect of the explanatory variable does not change and the relationship of the explanatory variable and dependent variable can be statistially significant. The result: 'the more absences the more probable to become high user of alcohol' is in line with my hypothesis. 
+
+
+Other explanatory variables in my model are categorical. About the relationship of categorical explanatory variables and categorical dependent variable the same book and chapter (The Health Data Science, Ewen Harrison and Riinu Pius, 2021, chapter: 9.2 Binary logistic regression) referred earlier say that:
+"odds ratio is the change in odds of a CV event associated with smoking compared with not smoking (the reference level)". In this case, however I have five categories in each explanatory variable instead of two (in binary variable). I would also utilize information from [stackexchange](https://stats.stackexchange.com/questions/60817/significance-of-categorical-predictor-in-logistic-regression)(visited 20.11.2023), this source was found in task 3 instructions) in my result interpretation. The model uses class 1 of my categorical explanatory variables (health, goout and famrel) as reference level. According to the [stackexchange](https://stats.stackexchange.com/questions/60817/significance-of-categorical-predictor-in-logistic-regression)(visited 20.11.2023), Wald test is used to compare if the difference of coefficients between each of the reference and other class pairs (which are e.g. coefficient of goout1-coefficient of goout2, coeffiecient of goout1-coefficient of goout3 and so on for the goout variable) equals to zero or not. The statistical significance of the test means that difference of the of coefficients of reference and compared class is statistically significantly different from zero. The coefficient of reference equals to intercept and the coefficients of other classes are actually those seen under the 'Estimate' title in the summary table plus the intercept. 
+Based on this introduction and also referencing to what I wrote earlier about OR and CI in general, I would interpret the result of health variable as follows: only the class five is statistically significant in the model. It means that the difference of coefficients of health = 1 and health = 5 groups significantly differs from zero  in Wald test. OR for the group 5 is ~2.6, which is positive change in odds of becoming 'high user' of alcohol when a student has answered 'health is very good' compared to the situation when a student has answered 'health is very bad'. So, the healthier the student, the more likely it is to become a heavy consumer of alcohol. This is not in line with my hypothesis, which was the opposite to this result. However, the confidence interval of this statistically significant OR result is very wide: from 1.078350996 to 6.4598320, meaning that the estimate is not very accurate. The accuracy of the estimate may be improved by using bigger sample size, so having more observations (=more students answering to the questionnaire).
+
+In case of family relationships (famrel), there are no statistically significant relationships observed, so I do not interpret their results more. 
+
+For the goout variable, there seems to be even two classes that have achieved statistical significance in the Wald test. OR for class 4 compared to class 1 is: 9.28481119 it's CI is: 2.497194937-48.9835440, and OR and CI for the class 5 compared to class 1 are: 14.21583349, and from 3.666926997 to 76.9157608, respectively. The positive change in odds of becoming 'high user' of alcohol is ~9.3 for the students who answered 'high' and ~14.2 for the students who answered 'very high' to the question about going out with friends compared to those who answered 'very low' to the same question. The CI seems to be very wide again for both of the class pair comparisons, so the estimates cannot be kept very accurate. However, in summary, it seems that those students who more go out with their friends are more likely to become heavy consumers of alcohol compared to those who much less go out with their friends. This is in line with my hypothesis. 
+
+AIC of the model, which describes the goodness of fit of the model, is 397.75. This does not tell much alone, but if we fit another model in the same data using, for example, only statistically significant variables, we can compare if the AIC of the model is smaller and the goodness of fit therefore improved, when non-significant extra variables are removed. 
+
+## 6. Prediction with the statistically significant variables and comparison of training error with simpler (guessing strategy) model
+I will use absences, health and goout as explanatory variables in the prediction accuracy testing. 
+
+```{r message =FALSE, warning=FALSE}
+# fit the model
+m2 <- glm(high_use ~  absences + health + goout, data = alc_f, family = "binomial")
+
+summary(m2)
+#health is not significant anymore
+#just testing, if AIC is improved without health variable:
+m3 = glm(high_use ~  absences + goout, data = alc_f, family = "binomial")
+summary(m3)
+
+# I will, however, do the predictions with the model 2 as health was statistically significant before and instructions told to choose statistically significant variables from that model. 
+
+# predict() the probability of high_use based on the model including (earlier) statistically significant explanatory variables
+probabilities <- predict(m2, type = "response")
+
+#probabilities
+# add the predicted probabilities to 'alc_f' data as a new column called probability
+alc_f <- mutate(alc_f, probability = probabilities)
+
+# use the probabilities to make a prediction of high_use. If probability predicted for high_use is higher than 0.5, the prediction suggests, that the (predicted) high_use status of the student is high_use = TRUE and vice versa. 
+alc_f <- mutate(alc_f, prediction = probability > 0.5)
+
+# see the last ten original classes, predicted probabilities, and class predictions
+select(alc_f, absences, health, goout, high_use, probability, prediction) %>% tail(10)
+
+# tabulate the target variable versus the predictions
+cross_table = table(high_use = alc_f$high_use, prediction = alc_f$prediction)
+cross_table
+
+#cross table as dataframe: just to clarify the numbers
+cross_tab_as_df = as.data.frame(table(high_use = alc_f$high_use, prediction = alc_f$prediction))
+rownames(cross_tab_as_df) = c("correct_false_pred", "incorrect_false_pred","incorrect_true_pred", "correct_true_pred")
+cross_tab_as_df
+
+#incorrectly predicted values:
+(60+24)/370 
+#0.227027
+
+
+```
+
+### Interpretation of prediction results
+This time health variable seem to non-significant in the model, even if it was stastitically significant before. I think this just shows how uncertain the values with wide CIs were. However, I will keep in the prediction model as it was significant before. AIC is actually increased (from 397.75 to 400.89), suggesting that this model is not actually better than the earlier model. For the model without health variable, AIC would be:397.61, which is a little bit better value indicating better model fit than in case of the original model that included four variables.  
+
+I present here the cross tabulation of correct and incorrect predictions, but to clarify the numbers to myself, I also present another table about the correct and incorrect predictions. Prediction is classified as correctly predicted when the prediction gets the same value as the actual status of high_use is. So, correctly predicted status can be identified as prediction = FALSE and high_use = FALSE at the same row (student) or prediction = TRUE and high_use = TRUE. Other combinations seen on the same row are incorrect predictions. 
+
+It seems that of the 370 students, the prediction was correct FALSE for 235 students, correct TRUE for 51 students and incorrect FALSE for 60 students and incorrect TRUE for 24 students. In total, predictions of  60+24 = 84 students were wrong compared to the real high_use status. The training error was therefore 0.227027. 
+
+```{r message =FALSE, warning=FALSE}
+#simpler guessing strategy model: I fit a model using only absences as explanatory variable and see what happens to the training error when I try to predict high_use status with this simple model
+simple_m = glm(high_use ~  absences, data = alc_f, family = "binomial")
+summary(simple_m)
+OR <- coef(simple_m) %>% exp
+CI = confint(simple_m) %>% exp
+print("OR and CI of the simple model variables")
+cbind(OR, CI)
+probabilities_simple <- predict(simple_m, type = "response")
+alc_f <- mutate(alc_f, probability_simple = probabilities_simple)
+alc_f <- mutate(alc_f, prediction_simple = probability_simple > 0.5)
+cross_table_simple = table(high_use = alc_f$high_use, prediction = alc_f$prediction_simple)
+
+#cross table of the simpler model
+cross_table_simple
+
+#training error:
+(5+102)/370
+```
+
+As can be seen, the training error or the proportion of incorrectly classified high_use statuses increases from 0.227027 of the more complicated model to 0.2891892 in the the simple model. The simple model here is very simple, using only one independent variable to prediction of the dependent variable statuses. The prediction result deteriorates despite the fact that the variable is very precise (according to narrow CIs) and statistically significant (p-value 0.00013 < 0.05).
+
+## 7. Bonus: 10-fold cross-validation
+```{r message =FALSE, warning=FALSE}
+#Here I utilize the training error calculation function, called loos_func, from the Exercise3:
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+
+#For 10-fold cross-validation I use cv.glm-function from boot-package, also used in the Exercise3. K=10 tells to the function that I want to do the 10-fold cross-validation. I also offer the loss_func to the cv.glm that it can estimate the average prediction error for the whole cross-validation (ten rounds using different set of observations in validation at each round)
+cv10 <- cv.glm(data = alc_f, cost = loss_func, glmfit = m2, K = 10)
+
+# the average prediction error is stored in delta-value that can be extracted from the model using $-operator and indexing the first of the values in delta
+cv10$delta[1]
+
+```
+
+### Interpretation of 10-fold cross-validation results
+In the 10-fold cross-validation, the average prediction error to my model with only statistically significant predictors (health included, as earlier) was 0.2648649 in the first run, which was not better than 0.26 or the value I got in the Exercise3, which was 0.2378378. However, the value seen in the final report may be different, as the validation sets vary and the average error can also vary when running the analysis again. So, in some round, I was actually able to find a model which had average prediction error < 0.26.
+
+```{r message =FALSE, warning=FALSE}
+#Trying to find a model with lower average prediction error in the 10-fold cross-validation
+#Different tactics tested:
+
+#remove health 
+cv10_2 <- cv.glm(data = alc_f, cost = loss_func, glmfit = m3, K = 10)
+cv10_2$delta[1]
+
+#add failures, which was a good predictor in the Exercise3
+alc_f$failures = as.factor(alc_f$failures)
+
+m4 = glm(high_use ~  absences + goout + failures, data = alc_f, family = "binomial")
+summary(m4)
+cv10_4 <- cv.glm(data = alc_f, cost = loss_func, glmfit = m4, K = 10)
+cv10_4$delta[1]
+#not better
+
+#I will next simply tabulate other variables and try guess better predictors based on the table
+dependent <- "high_use"
+explanatory <- colnames(alc_f)[1:33]
+alc_f %>% 
+  summary_factorlist(dependent, explanatory, p = TRUE,
+                     add_dependent_label = TRUE)
+#sex, studytime, goout and absences seems to be the most statistically significant in this table describing relationships of dependent and other variables
+#I will try them in the model
+alc_f$sex = as.factor(alc_f$sex)
+alc_f$studytime = as.factor(alc_f$studytime)
+m5 = glm(high_use ~  absences + goout + sex + studytime, data = alc_f, family = "binomial")
+summary(m5)
+cv10_5 <- cv.glm(data = alc_f, cost = loss_func, glmfit = m5, K = 10)
+cv10_5$delta[1]
+
+```
+
+
+### Interpretation of results from "trying to find a model with lower prediction error in 10-fold cross-validation"
+The limit for the prediction error I tried to achieve (lower than the limit) was 0.2378378. The successful tactic to find a suitable model was to tabulate the relationships of all the variables and then choose the variables with the most statistically significant realtinship with the dependent variable. The model included absences, goout, sex and studytime as explanatory variables and the average prediction error achieved was 0.227027 (in the first round). So I was able to find a model with lower average prediction error than the 0.26 or 0.2378378.
