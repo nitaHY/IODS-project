@@ -1,0 +1,408 @@
+---
+title: "chapter4"
+author: "Nita Mettinen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 4: Clustering and classification
+
+```{r message =FALSE, warning=FALSE}
+
+date()
+library(MASS)
+library(corrplot)
+library(tidyr)
+
+```
+
+## 2. Load and describe data
+
+```{r message =FALSE, warning=FALSE}
+
+# load the data
+data("Boston")
+
+# explore the dataset
+dim(Boston)
+
+str(Boston)
+
+
+```
+
+Data description:
+There are 506 observations and 14 variables, which, according to the str, seem to all include numerical data. A brief description of the data can be found [here](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/Boston.html). For me this kind of data is quite foreign and may be difficult to understand, since also variable descriptions look very short in the source, but I try to interpret the variables somehow.
+
+The data is titled as "Housing Values in Suburbs of Boston" and I guess that the 14 variables describe the housing values of 506 suburbs in Boston. It seems for me that some variables, such as black (1000(Bk−0.63)^2 where BkBk is the proportion of blacks by town) and lstat (lower status of the population (percent), tax (full-value property-tax rate per $10,000), zn (proportion of residential land zoned for lots over 25,000 sq.ft.), rm (average number of rooms per dwelling), age (proportion of owner-occupied units built prior to 1940), and medv (median value of owner-occupied homes in $1000s) describe the population or wealth of people living in the area. Some others, such as crim (per capita crime rate by town), indus (proportion of non-retail business acres per town), dis (weighted mean of distances to five Boston employment centres), rad (index of accessibility to radial highways), ptratio (pupil-teacher ratio by town) could describe possibilities to work and earn living. Nox (nitrogen oxides concentration (parts per 10 million) may indicate the rate of (private) motor vehicle use in the area. The chas (Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)) seems to define roughly the location of suburb in relation to the river. 
+
+## 3. Graphical overview, summaries and relationships of the variables
+### Numerical summaries
+```{r message =FALSE, warning=FALSE}
+#summaries
+summary(Boston)
+table(Boston$chas)
+```
+
+Interpretation of summaries: 
+Variables have very different ranges of numeric values. Based on differences in means and medians of the same variables I would not expect to find all of the variables to be normally distributed (as many of the means and medians differ quite much from each other), but it can be better evaluated from the next figures. Only one variable, chas, looks categorical, as expected. According to table, most of the suburbs are not located in the immediate vicinity of the river, if I have understood right. 
+
+
+### Graphical description of variables and their relationships
+```{r message =FALSE, warning=FALSE}
+#BAsic histograms of all continuous variables created in for loop
+par(mfrow = c(2, 2)) 
+
+for (i in c(1:14)){
+  hist(Boston[,i], main = paste("Histogram of ", colnames(Boston)[i]), xlab = paste(colnames(Boston)[i]), breaks = 100, plot = T)
+}
+
+```
+
+Interpretation of variable histograms:
+Only variables which histograms resemble normal distribution are rm, dis, lstat and medv, from which dis, lstat and medv are skewed, and at least medv and dis seem to have some outliers. But I'm not sure if any of these are expected to follow normal distribution and for clustering it may not matter. For most of the other variables, excluding nox and categorical chas variable, the values seem to be weighted towards either extreme of the distribution. Smaller frequences of other values are observed too, except rad and tax, where I can see quite clear gap between smaller values and very high values. 
+
+```{r message =FALSE, warning=FALSE}
+#pairwise scatterplots
+
+pairs(Boston)
+
+```
+Interpretation of pairs-plot:
+I can't see much from the figure containing all pairs of variables in the data, but at least those plots with clear gap between dots may not show correlation. I will next try to find out which of variables correlate and plot them better later. 
+
+```{r message =FALSE, warning=FALSE}
+#Correlation matrix and plot to better discover potential correlation between variables
+#correlation matrix using default method, which is Pearson correlation
+cor_matrix <- cor(Boston) 
+
+# round the values of matrix and print it 
+cor_matrix = cor_matrix %>% round(digits = 2)
+cor_matrix
+
+
+
+
+
+```
+Interpretation of correlation matrix:
+In the correlation matrix I can see the Pearson correlation values which vary between -1 and 1. 0 means no correlation, -1 refers to strong negative correlation and 1 refers to strong positive correlation. At diagonal I can see expected strong positive correlations, as each variable is tested agains itself. Other pairs tested are more interesting as they represent the relationship between the two variables. It seems that there are many kinds of relationships, as the values of the matrix vary in the entire possible range. It is, however, more convenient to interpret the relationships from the visualized form of the matrix, so I continue the interpretation of relationships utilizing correlation plot. Upper and lower triangles of a matrix are identical, so I plot only one of them to simplify the plot a little. 
+
+```{r message =FALSE, warning=FALSE}
+# visualize only the upper triangle of the correlation matrix with corrplot function from corrplot-package
+
+corrplot(cor_matrix, method = "circle", type = "upper", cl.pos = "b", tl.pos = "d", tl.cex = 0.6)
+```
+
+Interpretation of the correlation plot:
+The most notable positive correlations are between pairs of: rad and tax, zn and dis, indus and nox, nox and age, nox and tax, and rm and medv. In case of negative correlation, the most outstanding pairs seem to be lstat and medv, age and dis, nox and dis, and indus and dis. 
+
+Let's study the correlation values and pairwise scatterplots of these pairs showing highest positive or negative correlations. 
+
+```{r message =FALSE, warning=FALSE}
+#Positive correlation
+#correlation matrix values and scatterplots for the most correlating variable pairs with positive correlation
+
+#rad & tax
+cor_matrix["rad","tax"]
+pairs(Boston[,c("rad","tax")])
+
+#zn and dis
+cor_matrix["zn","dis"]
+pairs(Boston[,c("zn","dis")])
+
+#indus and nox
+cor_matrix["indus","nox"]
+pairs(Boston[,c("indus","nox")])
+
+#nox and age
+cor_matrix["nox","age"]
+pairs(Boston[,c("nox","age")])
+
+#nox and tax
+cor_matrix["nox","tax"]
+pairs(Boston[,c("nox","tax")])
+
+#rm and medv
+cor_matrix["rm","medv"]
+pairs(Boston[,c("rm","medv")])
+```
+
+Interpretation of the positively correlated pairs:
+All the correlation values are at least 0.66 and the highest correlation value is 0.91. 
+Next I interpret the correlation results of couple of pairs with the highest correlation values:
+The highest correlation is observed between rad and tax, on the other words, between 'index of accessibility to radial highways' and 'full-value property-tax rate per $10,000' which makes sense to me, since good access to highway could mean good location, which could increase the property-tax rate. 
+The second highest pairwise correlation value of 0.76 is observed between indus and nox, or 'proportion of non-retail business acres per town' and 'nitrogen oxides concentration (parts per 10 million)'. This also seems logical as more non-retail business could mean more traffic with motor vehicles on the area. 
+
+In general, I could say that from all these correlation plots I can observe positive correlation pattern of dots, which rise quite linearly from the lower left corners towards higher right corners of the plots. It shows that when one value increases the other value increases too.
+
+```{r message =FALSE, warning=FALSE}
+#Clearest negative correlations: lstat and medv, age and dis, nox and dis, and indus and dis
+#lstat & medv
+cor_matrix["lstat","medv"]
+pairs(Boston[,c("lstat","medv")])
+
+#age and dis
+cor_matrix["age","dis"]
+pairs(Boston[,c("age","dis")])
+
+#nox and dis
+cor_matrix["nox","dis"]
+pairs(Boston[,c("nox","dis")])
+
+#indus and dis
+cor_matrix["indus","dis"]
+pairs(Boston[,c("indus","dis")])
+
+
+```
+
+Interpretation of negatively correlated pairs:
+The values are all between -0.8 and -0.7. All the correlation plots show the negative correlation patter of the values: when one value increases the other value decreases. 
+When thinking about the pairs and if the negative correlations make sense, it seems reasonable that when percent of population with lower status increases (I assume that "lower status" is somehow related to wealth of people, but it is not described clearly in the documentation of the data) the median value of owner-occupied homes decreases and vice versa. 
+Age of the owner-occupied buldings seems to increase when distance to employment centres decreases. I think it makes sense that the oldest houses, or the houses that were built first, are located nearby the employment centres. 
+Nox and dis: when the distance to employment centres increses, air pollutation decreases, since there may be much less traffic outside the employment centres, seems reasonable to me. 
+Negative correlation between the distance of employment centres and 'proportion of non-retail business acres per town', in turn, do not seem that obvious to me, but maybe those places are located in different places in Boston. 
+
+## 4. Standardizing the data, modifying some variables and dividing the data to training and test sets
+### Standardize data
+```{r message =FALSE, warning=FALSE}
+#standardize the data with scale function
+boston_scaled <- as.data.frame(scale(Boston))
+
+# summaries of the scaled variables
+summary(boston_scaled)
+```
+
+Interpretation of standardization:
+When using scale function to standardization, the mean of variable is substracted from each value of the variable, and this sum is divided by standard deviation of the variables. As a result, all the variables are scaled so that their mean is zero. 
+
+```{r message =FALSE, warning=FALSE}
+#categorical crime-variable
+#quantiles of the variables represent the categories in the new crime-variable:
+bins <- quantile(boston_scaled$crim)
+bins
+
+# create a categorical variable 'crime'
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE)
+
+# look at the table of the new factor crime
+table(crime)
+
+#labels
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE, c("low", "med_low", "med_high", "high"))
+table(crime)
+
+# remove original crim from the dataset
+boston_scaled <- dplyr::select(boston_scaled, -crim)
+
+# add the new categorical value to scaled data
+boston_scaled <- data.frame(boston_scaled, crime)
+
+```
+
+### Training and test sets
+```{r message =FALSE, warning=FALSE}
+#number of rows from which 80% and 20% sets are extracted
+n <- nrow(boston_scaled)
+
+# choose randomly 80% of the rows
+#set seed to be able to get same results next time running this code
+set.seed(34)
+ind <- sample(n,  size = n * 0.8)
+
+# create train set
+train <- boston_scaled[ind,]
+
+# create test set 
+test <- boston_scaled[-ind,]
+
+
+```
+
+## 5. Linear discriminant analysis and biplot
+
+```{r message =FALSE, warning=FALSE}
+# linear discriminant analysis
+lda.fit <- lda(crime~., data = train)
+
+# print the lda.fit object
+lda.fit
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  graphics::arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# target classes as numeric
+classes <- as.numeric(train$crime)
+
+# plot the lda results (select both lines and execute them at the same time!)
+plot(lda.fit, dimen = 2, col = classes, pch = classes)
+lda.arrows(lda.fit, myscale = 1)
+
+```
+
+## 6. Prediction
+
+```{r message =FALSE, warning=FALSE}
+#removal of the crime variable from the test set 
+# save the correct classes from test data
+correct_classes <- test$crime
+
+# remove the crime variable from test data
+test <- dplyr::select(test, -crime)
+
+#predict the classes to test data:
+lda.pred <- predict(lda.fit, newdata = test)
+
+# cross tabulate the results
+table(correct = correct_classes, predicted = lda.pred$class)
+
+```
+
+Interpretation of prediction results (cross-tabulation of the results):
+From the result table I can deduce that the classifier most reliably predicts the high-category values of crime variable, since all the true high values are predicted correctly, and there are only two wrongly predicted values from the med_high category. Low-category values are not that well predicted as almost half of the true low-category values are predicted to be higher than they were, as 8/20 of true low values are predicted to be med_low values, and 5 of the med_low values are incorrectly predicted to be low values. The accuracy of the predictor is even weaker with the two intermediate classes, med_low and med_high. The prediction of these classes divided the values to three different categories. Fortunately, the category jumps of predictions were to the nearest two categories, no two-category jumps occurred. 
+
+## 7. Reload and scaling of Boston data, distance matrix calculation and k-means clustering analysis
+```{r message =FALSE, warning=FALSE}
+data("Boston")
+scaled_boston = as.data.frame(scale(Boston))
+# euclidean distance matrix is default method in dist function:
+dist_eu <- dist(scaled_boston)
+
+library(ggplot2)
+set.seed(34)
+
+#k-means algorithm, 1. run:
+km4 <- kmeans(scaled_boston, centers = 4)
+
+#how are the observations dividied into the four clusters?
+table(km4$cluster)
+#cluster 2 seems to contain much less observations than others, clusters 1 and 4 are nearly same size and cluster 3 contains about two times that much observations as cluster 1 or 4. 
+#visualization of four-cluster results:
+pairs(scaled_boston, col = km4$cluster, main = "Full data pairs")
+
+pairs(scaled_boston[1:5], col = km4$cluster, main = "Zoom in 1")
+pairs(scaled_boston[6:10], col = km4$cluster, main = "Zoom in 2")
+pairs(scaled_boston[11:14], col = km4$cluster, main = "Zoom in 3")
+pairs(scaled_boston[c(1,11,12,13,14)], col = km4$cluster, main = "Zoom in 4")
+
+#variables included in most colorful plots
+pairs(scaled_boston[c(1,5,6,12,13,14)], col = km4$cluster, main = "Most colorful plots")
+
+
+```
+
+Interpretation of the first k-means clustering results with four clusters:
+K-means algorithm tries to divide observations into classes so that observations within-group sum of squares over all variables is minimized. It means that within group the observations should be more similar and observations should differ clearly between groups.  
+
+When looking at the 'Full data pairs' plot, I can see mainly (only) that some plots contain more colors than others and in some of the plots there is clear gap between group of points colored by one or two colors. I could deduce that some of the variables (data included in the variables) may support classification to higher amount of groups better than some others. I think that variables associated to more colors, or, potential clusters observed in the scatterplots include at least crim, nox, rm, black, lstat and medv. If I zoom in (as is done in the 'Zoom in [1,2,3,4]' figures) I can see, that at least in many of the plots containing crim, nox, rm, black, lstat and medv I can see four colors that represent four clusters. I think that there isn't still clear separation to four clusters, but maybe to three or two clusters observed in each plot. By 'clusters' I refer to those groups of dots that have same color and they are located together at the same area, with at least clear limit or even gap between differently colored ones. 
+
+In other plots, such as those containing variables zn, indus, chas and maybe rad, I may not see even all four colors, but two clusters can be identified. I think these variables may not support the calssification to higher amount of groups. 
+
+It seems for me that four may not be the optimal number of clusters, as it cannot be found clearly in many or even any of the pairplots, most of which seem to support classification of observations into two or three clusters that can be quite clearly separated from each others. Let's find out which cluster number would be more optimal number of clusters according to changes in within cluster sum of squares (WCSS) when the amount clusters is changed.
+
+```{r message =FALSE, warning=FALSE}
+set.seed(34)
+
+# determine the maximum number of clusters
+k_max <- 10
+
+# calculate the total within sum of squares
+twcss <- sapply(1:k_max, function(k){kmeans(scaled_boston, k)$tot.withinss})
+
+# visualize the results
+qplot(x = 1:k_max, y = twcss, geom = 'line')
+
+
+```
+
+Interpretation of the cluster number optimization plot:
+Line is bent at the point where the number of clusters is 2. I deduce that the optimal number of clusters is 2. 
+
+
+Replotting the results with optimal number of clusters
+```{r message =FALSE, warning=FALSE}
+# k-means clustering
+km <- kmeans(scaled_boston, centers = 2)
+
+# plot the Boston dataset with clusters
+pairs(scaled_boston, col = km$cluster)
+pairs(scaled_boston[1:5], col = km$cluster)
+pairs(scaled_boston[6:10], col = km$cluster)
+pairs(scaled_boston[11:14], col = km$cluster)
+pairs(scaled_boston[c(1,11,12,13,14)], col = km$cluster)
+pairs(scaled_boston[c(1,5,6,12,13,14)], col = km$cluster, main = "Most colorful plots")
+```
+
+When the amount of clusters is optimized (2 clusters), I can see clearer classification of observations into two groups in most of the figures. 
+
+
+## Bonus
+```{r message =FALSE, warning=FALSE}
+#I will use 3 clusters in the kmeans
+set.seed(34)
+
+data("Boston")
+scaled_boston = as.data.frame(scale(Boston))
+
+#k-means algorithm, 1. run:
+km3 <- kmeans(scaled_boston, centers = 3)
+
+#put the km3 clusters (or classification of individuals to these clusters) as covariate to the scaled Boston data:
+clusters = km3$cluster
+clusters_df = as.data.frame(clusters) #it seems that row numbers refer to the original row numbers and are already at the original order, so the dataframes can be combined just by using cbind
+
+scaled_boston = cbind(scaled_boston, clusters_df)
+str(scaled_boston)
+#clusters are added now as one variable
+
+#LDA, clusters as target variable
+#number of rows from which 80% and 20% sets are extracted
+n <- nrow(scaled_boston)
+
+# choose randomly 80% of the rows
+#set seed to be able to get same results next time running this code
+set.seed(34)
+ind <- sample(n,  size = n * 0.8)
+
+# create train set
+train <- scaled_boston[ind,]
+
+# create test set 
+test <- scaled_boston[-ind,]
+
+# linear discriminant analysis
+lda.fit <- lda(clusters~., data = train)
+
+# print the lda.fit object
+lda.fit
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  graphics::arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# target classes as numeric
+classes <- as.numeric(train$clusters)
+
+# plot the lda results (select both lines and execute them at the same time!)
+plot(lda.fit, dimen = 2, col = classes, pch = classes)
+lda.arrows(lda.fit, myscale = 1)
+
+```
+
+Interpretation of Bonus biplot results:
+It is very difficult to see the names of variables in the plot, but I would interpret that the names at the tips of the longest opposite arrows, which I assume to indicate which of the variables are the most influential linear separators, are crim and black. Black I would have guessed based on the pairplots evalueated earlier, but crim was a little surprise for me. But the earlier pairplots including crim seem to represent quite clear two-class (at least) separation of observations. 
+
