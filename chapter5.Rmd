@@ -1,0 +1,245 @@
+---
+title: "chapter5"
+author: "Nita Mettinen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 5: Dimensionality reduction techniques
+
+```{r warning=FALSE, message=FALSE}
+#used libraries
+library(dplyr)
+library(readr)
+library(corrplot)
+library(tibble)
+library(GGally)
+library(ggplot2)
+library(FactoMineR)
+#install.packages("cowplot") done only at first time
+library(cowplot)
+library(tidyr)
+
+
+```
+
+## 1. Countries to rownames and graphical overview of the data
+
+```{r warning=FALSE, message=FALSE}
+#read data
+human = read_csv("data/human.csv")
+
+#set countries to rownames and remove Country column
+human <- column_to_rownames(human, "Country")
+
+#numerical summaries of the data:
+summary(human)
+#variances
+apply(as.matrix(human), 2, var)
+#standard deviations
+apply(as.matrix(human), 2, sd)
+
+
+
+```
+
+Interpretation of variable summaries: 
+Summaries show that all variables include numeric data but variables have very different ranges of values and also different means. Variances and standard deviations supply the information seen in summaries, and also those values seem to differ a lot between variables.
+
+```{r warning=FALSE, message=FALSE}
+#Graphical overview using histograms and scatterplots and correlation plots
+
+#histograms to define the distributions of variables
+
+list <-lapply(1:ncol(human),
+function(col) ggplot2::qplot(human[[col]],
+geom = "histogram",
+xlab = colnames(human)[col]))
+cowplot::plot_grid(plotlist = list)
+
+```
+
+Interpretation of histograms:
+Edu2.FM, Labo.FM, Edu.Exp and PArli.F have distributions that somewhat resemble normal distribution, which seems to be, however, little bit skewed in Edu2.FM, Labo.FM and Parli.F. Distributions of Life.Exp, GNI, Mat.Mor and Ado.Birth seem to be clearly skewed. 
+
+```{r warning=FALSE, message=FALSE}
+#Relationships of variables:
+#Pairwise scatterplots with correlation values and significance of the correlation, supplemented with another correlation plot to visually represent the pariwise correlation strengths
+
+#scatterplot and correlation values and statistical significances
+ggpairs(human, progress = F)
+
+#correlation matrix calculation and visualization
+cor(human)
+cor(human) %>% corrplot()
+
+```
+
+Interpretation of variable relationship results:
+From the ggpairs figure visualizing scatterplots, density plots and representing correlation values, I can see that most of the variables correlate statistically significantly and many of them correlate quite strongly (I mean high correlation, values approaching -1 or 1). Some of the scatterplots indicate also clear correlation, for example, scatterplots of Edu.Exp and Life.Exp or Mat.Mor and  Life.Exp, but from many of the figures (at least when viewing images at this size) I would not guessed that there is significant correlation between variables, for example, Ado.Birth and GNI. 
+When looking at the correlation matrix created using corrplot, I notice that two variables: Parli.F and Labo.FM do not correlate much with the other variables that, in turn, appear to be systematically correlated with each other. 
+
+## 2. PCA with non-standardized human-dataset
+```{r warning=FALSE, message=FALSE}
+# principal component analysis
+pca_human <- prcomp(human)
+
+#summary of the PCA
+s <- summary(pca_human)
+
+# rounded percentanges of variance captured by each PC
+pca_pr <- round(1*s$importance[2, ], digits = 5)
+
+#print the variability captured by each principal component
+pca_pr
+# percentages of variance
+pca_pr = round(pca_pr*100, 1)
+
+# stroring variance percentages to pc_lab to be able to be used as axis labels
+pc_lab = paste0(names(pca_pr), " (", pca_pr, "%)")
+
+# draw a biplot
+#biplot(pca_human, cex = c(0.8, 1), col = c("grey40", "deeppink2"), xlab = pc_lab[1], ylab = pc_lab[2])
+
+#Plot with short description of phenomenom in caption
+text1="The effect of huge difference in the range of values and magnitude of\n variance between one variable (GNI) and the other variables in non-scaled\n data is seen here in the PCA biplot.GNI-variable with the\n greatest value range and variance dominates the PCA and especially PC1,\n which seems to capture practically all the variance."
+par(mar = c(9, 4, 3, 3))
+    biplot(pca_human, cex = c(0.7, 0.9), col = c("grey40", "deeppink2"), xlab = pc_lab[1], ylab = pc_lab[2])
+    mtext(text1, side = 1, line = 7, cex = 0.8, adj = 0.5) 
+
+```
+
+## 3. PCA with standardized data and interpretation of PCA results with and without standardized data
+
+```{r warning=FALSE, message=FALSE}
+#standardizing the data with scale-function
+sc_human = scale(human)
+
+#summary and variances of scaled data, for comparison
+summary(sc_human)
+#variances
+apply(as.matrix(sc_human), 2, var)
+
+# principal component analysis
+sc_pca_human <- prcomp(sc_human)
+
+#summary of the PCA
+s_sc <- summary(sc_pca_human)
+s_sc
+# rounded percentanges of variance captured by each PC
+sc_pca_pr <- round(1*s_sc$importance[2, ], digits = 5)
+
+#print the variability captured by each principal component
+sc_pca_pr
+# percentages of variance
+sc_pca_pr = round(sc_pca_pr*100, 1)
+sc_pca_pr
+# stroring variance percentages to pc_lab to be able to be used as axis labels
+sc_pc_lab = paste0(names(sc_pca_pr), " (", sc_pca_pr, "%)")
+
+# draw a biplot
+#biplot(sc_pca_human, cex = c(0.8, 1), col = c("grey40", "deeppink2"), xlab = sc_pc_lab[1], ylab = sc_pc_lab[2])
+
+#Plot with short description of phenomenom in caption
+text2="In scaled data, variances of the variables are 1 and ranges of values\n are closer to each other between variables. \n Therefore, difference in magnitude of variance or value range of one variable do not \ndominate in PCA and we can see clearer results about what kind of variance seen in the \nbiplot between nations is affected by which of the variables."
+par(mar = c(11, 4, 3, 3))
+    biplot(sc_pca_human, cex = c(0.7, 0.9), col = c("grey40", "deeppink2"), xlab = sc_pc_lab[1], ylab = sc_pc_lab[2])
+    mtext(text2, side = 1, line = 7, cex = 0.8, adj = 0.5)
+```
+
+
+
+Interpretation of PCA results:
+In the biplots, we can see both the countries and variables, and the direction of variance of the variables in relation to the greatest two directions of variation in the data, defined by PC1 and PC2.
+
+Original, not standardized data: 
+Practically all of the variability (0.9999... ~ 1.0 ~ 100%) seems to be captured by the first principal component (PC1). There is only one arrow that stands out from others (I guess the others are there in the pink mess) and it points to the direction of the variable GNI, and, at the same time, it is quite parallel with the PC1 axis' direction. Therefore, the variable that seems to dominate the principal component analysis and the PC1, is GNI that has clearly the greatest range in values as well as the greatest variance, when the data is not scaled. This kind of phenomenon exists in PCA because in the original data, variables are mainly different type of measures and the range and variance (and mean) of the numerical values between many of the variables differ a lot. For example, the values of Edu2.FM vary between ~0.17 and ~1.50, while the value range of GNI is 581-123124. Variances of the variables also differ in magnitude: GNI has variance many times greater than the variances of other variables. Variance of GNI was ~3.4*10^8, and the second greatest variance that belonged to Mat.Mor was ~4.5*10^4. Even the Mat.Mor variance is many times smaller than the variance of GNI, and rest of the variances are even much smaller. 
+
+PCA with scaled (standardized) data:
+The result of PCA is quite different when input data for PCA is scaled compared to the non-scaled. When the data is scaled with scale-function, all of the variables have mean=0 (as seen from summary-table of the scaled data) and variance=1 (see variances calculated for the data with sd-function), and the ranges of values are at the same scale, not tens of times greater or smaller compared to each other, as they were in case of non-scaled data. Now, when the values of variables are in similar scale, the difference in the order of size of variance or range does not dominate in the PCA. When we make values of variables more comparable with each other like this, we can get more reasonable PCA-results when seeing effects of other variables too. On the other hand, we assume or decide that the variables are equally important, which, I think, might possibly lead to wrong conclusions, if the true situation would actually be very different. However, the PC1, the most "important" or the most of the variance capturing principal component seems to account for 53.6% of the variance in the original variables, the second most important PC, which is PC2, captures 16.2% of the variance and each of the rest of 10 PCs explain less than 10% of the variance, but cumulatively all of the variance is explained. Now it can be seen that the PCA is not dominated by one variable. PC1-direction variance seems to be mostly caused by variance in the reproduction health situation related variables (Ado.Birth and Mat.Mor, one dimension in the GII) and healthy life (Life.Exp), knowledge/education (Edu.Exp, Edu2.FM) and financial situation (GNI) of the country related variables. The direction of variation created by first two variables is approximately the opposite to the rest of the listed variables. 
+Variation in PC2-direction seems to be explained by Labo.FM and Parli.FM, both of which have arrows pointing upwards nearly parallel with the PC2 axis.
+
+
+## 4. (personal) Interpretations of PC1 and PC2
+I could say that the PC1 includes variables that define the level of basic conditions for survival, well-being and development of the nation, so PC1 could describe the level of basic conditions for well-being and development in the nation. I think the observations that many European countries and Japan, for example, are located on the left side of center of the biplot, same side where the arrows of education/knowledge, financial and healthy life situation point, support the interpretation. In these countries, people use to get basic education, live to old age, and do well financially on average, compared to the situation in countries seen on the other side of the plot. There we can see, for example, some African or Middle East countries that may have different situation for these variables, as well as for the reproductive health related variables.  
+
+The interpretation of the PC2 is more challenging in my opinion. The two variables that explain the variation in that direction present how evenly different genders are represented in working life and government decision-making. I could summarise this like "how equal are the possibilities of genders to participate in society and influence the functioning and development of the society". However, I can't say if or how the countries observed in the highest positions of the biplot, for example, tehere are European countries but there are also some African countries, support this theory. I think, though, that my knowledge in geography and social sciences may not be good enough to analyse this properly. 
+
+## 5. Tea data and MCA
+
+### Structure and dimensions and overview of the tea data
+```{r warning=FALSE, message=FALSE}
+#read data
+tea <- read.csv("https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/tea.csv", stringsAsFactors = TRUE)
+
+#structure, dimensions and contents
+str(tea)
+dim(tea)
+#View(tea) 
+#I will show here a part of the contents with head-function
+head(tea)
+
+
+```
+### Visualizing the tea-data variables with barplots
+```{r warning=FALSE, message=FALSE}
+#data is categorical/factor like, so I use barplot to visualize the variables
+length(colnames(tea))#let's divide by four to see something from each barplot
+chosen_var1 = colnames(tea)[1:9]
+chosen_var2 = colnames(tea)[10:18]
+chosen_var3 = colnames(tea)[19:27]
+chosen_var4 = colnames(tea)[28:36]
+
+#Barplots to see the overall distribution of values in variables
+#set 1
+gather(tea[,chosen_var1]) %>% ggplot(aes(value)) + geom_bar() + ggtitle("Barplots of selected variables in set 1") + facet_wrap("key", scales = "free")
+#set2
+gather(tea[,chosen_var2]) %>% ggplot(aes(value)) + geom_bar() + ggtitle("Barplots of selected variables in set 2") + facet_wrap("key", scales = "free")
+#set3
+gather(tea[,chosen_var3]) %>% ggplot(aes(value)) + geom_bar() + ggtitle("Barplots of selected variables in set 3") + facet_wrap("key", scales = "free")
+#set4
+gather(tea[,chosen_var4]) %>% ggplot(aes(value)) + geom_bar() + ggtitle("Barplots of selected variables in set 4") + facet_wrap("key", scales = "free")
+
+```
+
+### MCA analysis and biplot
+I will include only couple of columns of the tea data used earlier in the exercise 5 to (hopefully) keep the result of the analysis as well as the plot simpler
+
+```{r warning=FALSE, message=FALSE}
+# limit data to only couple of variables
+keep_columns <- c("Tea", "How", "how", "sugar", "where", "lunch")
+
+# select the 'keep_columns' to create a new dataset
+tea_time <- tea[,keep_columns]
+
+# multiple correspondence analysis = MCA
+mca <- MCA(tea_time, graph = FALSE)
+
+# summary of the model
+summary(mca)
+
+
+```
+
+Interpretation of MCA results:
+As denoted in the Exercise 5 introduction to MCA: "(MCA) is a method to analyze qualitative data and it is an extension of Correspondence analysis (CA). MCA can be used to detect patterns or structure in the data as well as in dimension reduction." and this was, I guess, related to the source [Multiple Correspondence Analysis](https://en.wikipedia.org/wiki/Multiple_correspondence_analysis) (visited 5.12.2023). According to this source and summary of it from the Exercise 5, MCA is quite equal to PCA, since as a result, data points are represented in low-dimensional Euclidean space (dimensionality reduction and Euclidean distance, as in the PCA), but the methods to get there differ. Instead of covariance matrix, there is table of pairwise cross-tabulations called Burt table. Also as a result, there are 'dimensions' in the importance order, where importance is related to maximum oppositions between rows and columns, or maximum variance observed, as in the PCA. So, the most important dimension captures most of the variance in the data, the second dimension the second highest proportion of the variance and so on. 
+
+Summary of the MCA maybe the result to interpret at this point, as it represents the dimension values for (the first ten) individuals and variable categories as well as the total variance and proportion of variance explained by the dimensions (Dim.1-Dim.11), which are the results from MCA. The most important dimension, Dim.1, seems to capture ~15.2% of the total variance, but the second most important dimension, Dim.2, captures almost equal proportion of the total variance: 14.2%. The proportion of explained variance seem to stay more equal between dimensions with reducing importance than I expected based on PCA, where the proportion of explained variance typically reduces faster with the importance. 
+The values related to individuals or categories of variables maybe better to interpret from the visual representation, biplot in this case.
+
+```{r, warning=FALSE, message=FALSE}
+# visualize MCA
+#variables (and their categories) only
+plot(mca, invisible=c("ind"), graph.type = "classic", habillage = "quali")
+
+#individuals only
+plot(mca, invisible=c("var"), graph.type = "classic")
+
+#individuals and variables
+plot(mca, invisible=c("none"), graph.type = "classic", habillage = "quali")
+```
+
+Interpretation of MCA bioplots:
+We can observe some potential underlying structures of the data in the MCA biplots. 
+In the first plot, including categories of variables and different variables represented with different colors, we can see how distant are the categories of same variable from each other, or, which of them vary more, and with which categories of other variables some of them seem to group. The next plot containing only individuals follows the pattern outlined by the categories in the first plot. The individuals with more similar preferences with tea are nearer each other in the biplot than those having different preferences. When showing both the variables and the individuals in the same plot (the third biplot), we can see which individuals have more similar preferences with tea and what those preferences would be according to the nearest groups of categories. On the other hand, individuals located far away from each other probably prefer different categories, which also are (probably) located away from the other categories, and these individuals and categories potentially form another group with more similarities within this group than others around.  
+For example, I could interpret that the individuals located nearby each other in the lower righ rectangle (delineated by lines) might prefer green tea, bought as unpacked from a tea shop. They have opinions or preferences to other variables too, but they may not be seen as clearly from the biplot. If I take a closer look to one individual, I would observe that individual 195 is located closest to the lower righ corner of the biplot, and according to the data, this individual prefers: green tea, alone, unpackaged, No.sugar, bought from tea shop and Not.lunch (tea?). These categories from each variables seem to be closest to the individual in the biplot, so it seems that the grouping fitted well in this extreme individual point case. 

@@ -1,6 +1,6 @@
-#Nita Mettinen, 28.11.2023
+#Nita Mettinen, 28.11.2023, continued 1.12.2023
 #IODS-course week 4, Data Wrangling: Preparation of data to next week. 
-
+#IODS-course week 5, Data Wrangling: continue working with the human-data
 #Install/activate the needed libraries
 library(dplyr)
 library(readr)
@@ -96,5 +96,75 @@ dim(human)
 
 #write csv:
 write_csv(human, "data/human.csv")
+
+#Week 5 Data wrangling starts here#
+
+# 1. Describe the human-data and explore structure and dimensions
+human = read_csv("data/human.csv")
+dim(human)
+# Data contains 195 rows. Each row represents information 
+# related to one country seen in the "Country" column. Represented information 
+# is divided into 19 columns.
+str(human)
+# The 19 columns include numerical information about the countries. 
+# HDI means Human development index, which consists of variables from 
+# three dimensions: long and healthy life, knowledge and a decent standard or 
+# living. Healthy life dimension is defined by life expectancy at birth, seen in 
+# variable Life.Exp. Expected years of schooling, variable Edu.Exp, and mean 
+# years of schooling, variable Edu.Mean, form the index of knowledge 
+# dimension in HDI. The third dimension, a decent standard of living, is 
+# defined by variable GNI, which refers to GNI per capita. 
+# There are also other variables in the data. HDI.rank is order of countries
+# according to HDI. Another rank found is GNI.rank_minus_HDI.rank, defining 
+# another ordering method to countries. There is also GII.rank, which ranks 
+# countries according to variable GII, Gender Inequality Index. GII is also 
+# three-dimensional index describing gender-based inequality or loss in human 
+# development due to gender inequalities. The index is defined by variables 
+# related to reproductive health, empowerment and the labour market and the 
+# value 0 of GII refers to genders having quite equal conditions and 1 refers to
+# unequal conditions for one of the genders. GII reproductive health-dimension
+# related variables include: 
+# Mat.Mor = maternal mortality ratio = deaths per 100,000 live births and
+# Ado.Birth = Adolescent birth rate = births per 1,000 women ages 15–19. 
+# GII empowerment-dimension is defined by variables: Parli.F = Share of seats in 
+# parliament (% held by women) and Edu2.F (female) and Edu2.M (male) = 
+# Population with at least some secondary education (%). Labour market -dimension
+# is described with gender specific variables Labo.F and Labo.M = Labour 
+# force participation rate (%). 
+# In addition, there are variables Edu2.FM and Labo.FM, which are the ratios of 
+# women and men for the similarly named original variables. 
+# GII information was found here: https://hdr.undp.org/system/files/documents/technical-notes-calculating-human-development-indices.pdf, 3.12.2023
+# and in the original data set (for this course): https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/gender_inequality.csv
+# HDI information was also found in the original data set (for this course): https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/human_development.csv
+# and from: https://hdr.undp.org/data-center/human-development-index#/indicies/HDI, 3.12.2023
+
+# 2. Keep only variables: "Country", "Edu2.FM", "Labo.FM", "Edu.Exp", "Life.Exp", "GNI", "Mat.Mor", "Ado.Birth", "Parli.F"
+human = select(human, all_of(c("Country", "Edu2.FM", "Labo.FM", "Edu.Exp", "Life.Exp", "GNI", "Mat.Mor", "Ado.Birth", "Parli.F")))
+
+# 3. Remove rows with missing values
+human <- filter(human, complete.cases(human))
+
+# 4. Remove regions, keep countries
+human[c(156:162),"Country"]
+#1 Arab States                    
+#2 East Asia and the Pacific      
+#3 Europe and Central Asia        
+#4 Latin America and the Caribbean
+#5 South Asia                     
+#6 Sub-Saharan Africa             
+#7 World  
+# it seems that indices 156-162 in the table (last seven rows) include 
+# regions rather than countries, so lets remove them
+last <- nrow(human) - 7
+human <- human[1:last, ]#ok!
+#
+
+# 5. checking the dimension and overwriting the
+# old version of human data in the data folder
+dim(human)
+#155   9 <- ok
+write_csv(human, "data/human.csv")
+
+
 
 
